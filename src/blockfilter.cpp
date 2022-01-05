@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019 The Bitcoin Core developers
+// Copyright (c) 2018-2021 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -81,7 +81,7 @@ GCSFilter::GCSFilter(const Params& params)
 GCSFilter::GCSFilter(const Params& params, std::vector<unsigned char> encoded_filter)
     : m_params(params), m_encoded(std::move(encoded_filter))
 {
-    VectorReader stream(GCS_SER_TYPE, GCS_SER_VERSION, m_encoded, 0);
+    SpanReader stream{GCS_SER_TYPE, GCS_SER_VERSION, m_encoded};
 
     uint64_t N = ReadCompactSize(stream);
     m_N = static_cast<uint32_t>(N);
@@ -92,7 +92,7 @@ GCSFilter::GCSFilter(const Params& params, std::vector<unsigned char> encoded_fi
 
     // Verify that the encoded filter contains exactly N elements. If it has too much or too little
     // data, a std::ios_base::failure exception will be raised.
-    BitStreamReader<VectorReader> bitreader(stream);
+    BitStreamReader<SpanReader> bitreader{stream};
     for (uint64_t i = 0; i < m_N; ++i) {
         GolombRiceDecode(bitreader, m_params.m_P);
     }
@@ -133,13 +133,13 @@ GCSFilter::GCSFilter(const Params& params, const ElementSet& elements)
 
 bool GCSFilter::MatchInternal(const uint64_t* element_hashes, size_t size) const
 {
-    VectorReader stream(GCS_SER_TYPE, GCS_SER_VERSION, m_encoded, 0);
+    SpanReader stream{GCS_SER_TYPE, GCS_SER_VERSION, m_encoded};
 
     // Seek forward by size of N
     uint64_t N = ReadCompactSize(stream);
     assert(N == m_N);
 
-    BitStreamReader<VectorReader> bitreader(stream);
+    BitStreamReader<SpanReader> bitreader{stream};
 
     uint64_t value = 0;
     size_t hashes_index = 0;
@@ -291,7 +291,7 @@ uint256 BlockFilter::GetHash() const
     const std::vector<unsigned char>& data = GetEncodedFilter();
 
     uint256 result;
-    CHash256().Write(data.data(), data.size()).Finalize(result.begin());
+    CHash256().Write(data).Finalize(result);
     return result;
 }
 
@@ -301,8 +301,8 @@ uint256 BlockFilter::ComputeHeader(const uint256& prev_header) const
 
     uint256 result;
     CHash256()
-        .Write(filter_hash.begin(), filter_hash.size())
-        .Write(prev_header.begin(), prev_header.size())
-        .Finalize(result.begin());
+        .Write(filter_hash)
+        .Write(prev_header)
+        .Finalize(result);
     return result;
 }
